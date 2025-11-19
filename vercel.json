@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "LDDC/flask_server.py",
+      "use": "@vercel/python",
+      "config": {
+        "pipPath": "pip",
+        "requirementsPath": "LDDC/requirements.txt"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "LDDC/flask_server.py"
+    }
+  ]
+}
