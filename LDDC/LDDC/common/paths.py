@@ -30,53 +30,57 @@ def get_win_path(csidl: int) -> Path:
     raise OSError(msg)
 
 
-match platform.system():
-    case "Linux":
-        home = Path.home()
-        if "ANDROID_ARGUMENT" in os.environ or "P4A_BOOTSTRAP" in os.environ:
-            # Android
-            from android.storage import app_storage_path, primary_external_storage_path  # type: ignore[]
+# --- 新增：Vercel Serverless 环境 ---
+if os.getenv("VERCEL"):
+    tmp_root = Path("/tmp/lddc")
+    config_dir = tmp_root / "config"
+    data_dir   = tmp_root / "data"
+    cache_dir  = tmp_root / "cache"
+    log_dir    = tmp_root / "logs"
+    default_save_lyrics_dir = tmp_root / "Lyrics"
+# --- 结束 ---
+else:
+    match platform.system():
+        case "Linux":
+            home = Path.home()
+            if "ANDROID_ARGUMENT" in os.environ or "P4A_BOOTSTRAP" in os.environ:
+                # Android
+                from android.storage import app_storage_path, primary_external_storage_path  # type: ignore[]
 
-            _primary_ext_storage = primary_external_storage_path()
-            _app_storage = app_storage_path()
+                _primary_ext_storage = primary_external_storage_path()
+                _app_storage = app_storage_path()
 
-            config_dir = _app_storage / "config"
-            data_dir = _app_storage / "data"
-            cache_dir = _app_storage / "cache"
-            log_dir = _primary_ext_storage / "LDDC" / "logs"
-            default_save_lyrics_dir = _primary_ext_storage / "Documents" / "Lyrics"
-        else:
+                config_dir = _app_storage / "config"
+                data_dir = _app_storage / "data"
+                cache_dir = _app_storage / "cache"
+                log_dir = _primary_ext_storage / "LDDC" / "logs"
+                default_save_lyrics_dir = _primary_ext_storage / "Documents" / "Lyrics"
+            else:
+                home = Path.home()
+
+                # XDG Base Directory
+                config_dir = home / ".config" / "LDDC"
+                data_dir = home / ".local" / "share" / "LDDC"
+                cache_dir = home / ".cache" / "LDDC"
+                log_dir = data_dir / "logs"
+                default_save_lyrics_dir = home / "Documents" / "Lyrics"
+        case "Darwin":  # macOS
             home = Path.home()
 
-            # XDG Base Directory
-            config_dir = home / ".config" / "LDDC"
-            data_dir = home / ".local" / "share" / "LDDC"
-            cache_dir = home / ".cache" / "LDDC"
-            log_dir = data_dir / "logs"
+            config_dir = home / "Library" / "Preferences" / "LDDC"
+            data_dir = home / "Library" / "Application Support" / "LDDC"
+            cache_dir = home / "Library" / "Caches" / "LDDC"
+            log_dir = home / "Library" / "Logs" / "LDDC"
             default_save_lyrics_dir = home / "Documents" / "Lyrics"
-        # XDG Base Directory
-        config_dir = home / ".config" / "LDDC"
-        data_dir = home / ".local" / "share" / "LDDC"
-        cache_dir = home / ".cache" / "LDDC"
-        log_dir = data_dir / "logs"
-        default_save_lyrics_dir = home / "Documents" / "Lyrics"
-    case "Darwin":  # macOS
-        home = Path.home()
-
-        config_dir = home / "Library" / "Preferences" / "LDDC"
-        data_dir = home / "Library" / "Application Support" / "LDDC"
-        cache_dir = home / "Library" / "Caches" / "LDDC"
-        log_dir = home / "Library" / "Logs" / "LDDC"
-        default_save_lyrics_dir = home / "Documents" / "Lyrics"
-    case "Windows":
-        config_dir = get_win_path(csidl["roaming_appdata"]) / "LDDC"
-        data_dir = get_win_path(csidl["local_appdata"]) / "LDDC"
-        cache_dir = data_dir / "Cache"
-        log_dir = data_dir / "Logs"
-        default_save_lyrics_dir = get_win_path(csidl["documents"]) / "Lyrics"
-    case _:
-        msg = f"Unsupported platform: {platform.system()}"
-        raise OSError(msg)
+        case "Windows":
+            config_dir = get_win_path(csidl["roaming_appdata"]) / "LDDC"
+            data_dir = get_win_path(csidl["local_appdata"]) / "LDDC"
+            cache_dir = data_dir / "Cache"
+            log_dir = data_dir / "Logs"
+            default_save_lyrics_dir = get_win_path(csidl["documents"]) / "Lyrics"
+        case _:
+            msg = f"Unsupported platform: {platform.system()}"
+            raise OSError(msg)
 
 
 auto_save_dir = data_dir / "auto_save"
@@ -87,7 +91,9 @@ def create_directories(dirs: list[Path]) -> None:
         directory.mkdir(parents=True, exist_ok=True)
 
 
-create_directories([config_dir, data_dir, cache_dir, log_dir, auto_save_dir])
+# 惰性建目录：Vercel 环境跳过，本地/桌面端首次导入时创建
+if running_lddc and not os.getenv("VERCEL"):
+    create_directories([config_dir, data_dir, cache_dir, log_dir, auto_save_dir])
 
 if running_lddc:
     info_path = data_dir / "info.json"
@@ -109,5 +115,7 @@ def __update_info() -> None:
         json.dump(info, f, ensure_ascii=False)
 
 
-if running_lddc:
+# 同样只在非 Vercel 环境写 info.json
+if running_lddc and not os.getenv("VERCEL"):
     __update_info()
+
